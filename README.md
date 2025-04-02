@@ -1,4 +1,5 @@
 # AI Hedge Fund
+# Mine Now
 
 This is a proof of concept for an AI-powered hedge fund.  The goal of this project is to explore the use of AI to make trading decisions.  This project is for **educational** purposes only and is not intended for real trading or investment.
 
@@ -39,14 +40,18 @@ This project is for **educational and research purposes only**.
 By using this software, you agree to use it solely for learning purposes.
 
 ## Table of Contents
-- [Setup](#setup)
-- [Usage](#usage)
-  - [Running the Hedge Fund](#running-the-hedge-fund)
-  - [Running the Backtester](#running-the-backtester)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [Feature Requests](#feature-requests)
-- [License](#license)
+- [AI Hedge Fund](#ai-hedge-fund)
+- [Mine Now](#mine-now)
+  - [Disclaimer](#disclaimer)
+  - [Table of Contents](#table-of-contents)
+  - [Setup](#setup)
+  - [Usage](#usage)
+    - [Running the Hedge Fund](#running-the-hedge-fund)
+    - [Running the Backtester](#running-the-backtester)
+  - [Project Structure](#project-structure)
+  - [Contributing](#contributing)
+  - [Feature Requests](#feature-requests)
+  - [License](#license)
 
 ## Setup
 
