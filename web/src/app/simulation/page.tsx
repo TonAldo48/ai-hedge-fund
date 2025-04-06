@@ -9,14 +9,25 @@ import AnalystSignalsTable from '@/components/analyst-signals-table'
 import PerformanceMetrics from '@/components/performance-metrics'
 import { PortfolioChart } from '@/components/charts/portfolio-chart'
 import { SimulationConfig, SimulationResult, runMockSimulation } from '@/lib/api'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, PlusCircle } from 'lucide-react'
 import { SaveSimulationDialog } from '@/components/save-simulation-dialog'
+import { StrategyComparison } from '@/components/strategy-comparison'
+import { Button } from '@/components/ui/button'
+
+type SavedStrategy = {
+  id: string
+  name: string
+  result: SimulationResult
+  config: SimulationConfig
+}
 
 export default function SimulationPage() {
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentConfig, setCurrentConfig] = useState<SimulationConfig | null>(null)
+  const [savedStrategies, setSavedStrategies] = useState<SavedStrategy[]>([])
+  const [strategiesCount, setStrategiesCount] = useState(0) // For generating unique IDs
 
   const handleRunSimulation = async (config: SimulationConfig) => {
     setIsLoading(true)
@@ -39,6 +50,24 @@ export default function SimulationPage() {
     // You might want to automatically run the simulation when loading
     // or just populate the form and let the user click "Run"
     handleRunSimulation(config)
+  }
+
+  const handleAddToComparison = () => {
+    if (!simulationResult || !currentConfig) return
+
+    const newStrategy: SavedStrategy = {
+      id: `strategy-${strategiesCount + 1}`,
+      name: currentConfig.ticker.split(',')[0] + ' Strategy',
+      result: simulationResult,
+      config: currentConfig
+    }
+
+    setSavedStrategies([...savedStrategies, newStrategy])
+    setStrategiesCount(prev => prev + 1)
+  }
+
+  const handleRemoveStrategy = (id: string) => {
+    setSavedStrategies(savedStrategies.filter(strategy => strategy.id !== id))
   }
 
   return (
@@ -79,11 +108,22 @@ export default function SimulationPage() {
         {simulationResult && (
           <>
             <Card>
-              <CardHeader>
-                <CardTitle>Performance Summary</CardTitle>
-                <CardDescription>
-                  Key performance metrics for your trading strategy
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle>Performance Summary</CardTitle>
+                  <CardDescription>
+                    Key performance metrics for your trading strategy
+                  </CardDescription>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-1"
+                  onClick={handleAddToComparison}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Add to Comparison</span>
+                </Button>
               </CardHeader>
               <CardContent>
                 <PerformanceMetrics performance={simulationResult.performance} />
@@ -125,6 +165,16 @@ export default function SimulationPage() {
             </Card>
           </>
         )}
+
+        {/* Strategy Comparison Section */}
+        <StrategyComparison 
+          results={savedStrategies.map(s => ({ 
+            id: s.id, 
+            name: s.name, 
+            result: s.result 
+          }))}
+          onRemoveStrategy={handleRemoveStrategy}
+        />
       </div>
     </div>
   )

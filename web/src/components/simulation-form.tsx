@@ -110,7 +110,7 @@ export default function SimulationForm({ onSubmit, isLoading, initialConfig }: S
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!startDate || !endDate) {

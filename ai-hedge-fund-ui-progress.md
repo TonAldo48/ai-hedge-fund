@@ -21,13 +21,11 @@
 - ✅ Improved simulation form with multi-ticker support and analyst selection
 - ✅ Set up mock API endpoints for future backend integration
 
-## Currently In Progress
-
 ### Phase 3: Advanced Features
+- ✅ Implemented save/load simulation configurations
+- ✅ Created strategy comparison tools with performance metrics
+- ✅ Added custom agent configuration and management
 - ⏳ API Integration with the Python backend
-- ⏳ Implement saving/loading simulations 
-- ⏳ Create strategy comparison tools
-- ⏳ Add custom agent configuration
 
 ### Phase 4: Polish & Optimization
 - ⏳ Optimize performance
@@ -35,24 +33,26 @@
 - ⏳ Improve accessibility
 - ⏳ Add animations and transitions
 
+## Currently In Progress
+
+1. API Integration with the Python backend
+   - Setting up authentication flow
+   - Implementing real-time data fetching
+   - Creating error handling for API failures
+
 ## Next Steps
 
-1. Connect the UI to the Python backend API
+1. Complete the Python Backend Integration
    - Set up API routes in Next.js to proxy requests to the backend
    - Implement authentication and session management
    - Create error handling and loading states
 
-2. Enhance simulation workflow
-   - Add ability to save and load simulation configurations
-   - Implement comparison between different simulation runs
-   - Create visualization of trading decisions on price charts
-
-3. Improve portfolio management
+2. Enhance Portfolio Management
    - Add manual trade entry functionality
    - Implement portfolio rebalancing suggestions
    - Create performance attribution analysis
 
-4. Polish the UI
+3. Polish the UI
    - Add smooth transitions between pages
    - Implement skeleton loading states
    - Ensure responsive behavior on all device sizes

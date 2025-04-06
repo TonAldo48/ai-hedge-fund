@@ -210,7 +210,7 @@ export function SaveSimulationDialog({
                   id="name"
                   placeholder="My Tesla Strategy"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -219,7 +219,7 @@ export function SaveSimulationDialog({
                   id="description"
                   placeholder="Long-term strategy focusing on Tesla"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)}
                 />
               </div>
               
