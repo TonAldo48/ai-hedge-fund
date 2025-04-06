@@ -96,15 +96,17 @@ export function CandlestickChart({ data }: CandlestickChartProps) {
             stroke="none"
             barSize={8}
             shape={(props) => {
-              const { x, y, width, height, dataItem } = props
-              const color = dataItem.color
+              const { x, y, width, height } = props
+              // Safely access dataItem and provide fallbacks
+              const dataItem = props.dataItem || {}
+              const color = dataItem.color || 'var(--muted-foreground)' // Default fallback color
               
               return (
                 <rect
                   x={x - width / 2}
-                  y={dataItem.bodyBottom}
+                  y={dataItem.bodyBottom || y}
                   width={width}
-                  height={dataItem.bodyHeight}
+                  height={dataItem.bodyHeight || height}
                   fill={color}
                   stroke={color}
                 />

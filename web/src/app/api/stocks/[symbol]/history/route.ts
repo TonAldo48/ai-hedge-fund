@@ -7,7 +7,8 @@ export async function GET(
   request: Request,
   { params }: { params: { symbol: string } }
 ) {
-  const { symbol } = params
+  // Ensure params is properly awaited
+  const symbol = params.symbol
   const { searchParams } = new URL(request.url)
   const timeframe = searchParams.get('timeframe') || '3M'
   

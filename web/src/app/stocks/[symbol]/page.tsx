@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { CandlestickChart, StockDataPoint } from '@/components/charts/candlestick-chart'
-import { fetchStockData } from '@/lib/api'
+import { fetchPriceHistory, fetchStockDetails } from '@/lib/api'
 import {
   Table,
   TableBody,
@@ -15,7 +15,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { ArrowDown, ArrowUp, Loader2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, ZoomIn, ZoomOut } from 'lucide-react'
+import React from 'react'
+import { Slider } from '@/components/ui/slider'
 
 type StockDetailPageProps = {
   params: {
@@ -51,25 +53,70 @@ const aiInsights = [
   },
 ]
 
-export default function StockDetailPage({ params }: StockDetailPageProps) {
-  const { symbol } = params
-  const [stockData, setStockData] = useState<StockDataPoint[]>([])
-  const [loading, setLoading] = useState(true)
-  const [timeframe, setTimeframe] = useState<'1m'|'3m'|'6m'|'1y'|'5y'>('3m')
+// Update the interface used in fetchPriceHistory to include OHLC data
+interface StockHistoryPoint {
+  date: string;
+  price: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+}
 
-  // Mock data for stock info
-  const stockInfo = {
+export default function StockDetailPage({ params }: StockDetailPageProps) {
+  // Access symbol from params using React.use() for Next.js 15 compatibility
+  const unwrappedParams = React.use(params as any) as { symbol: string }
+  const symbol = unwrappedParams.symbol
+  const [stockData, setStockData] = useState<StockDataPoint[]>([])
+  const [stockDetails, setStockDetails] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [detailsLoading, setDetailsLoading] = useState(true)
+  const [timeframe, setTimeframe] = useState<'1m'|'3m'|'6m'|'1y'|'5y'>('3m')
+  const [zoomLevel, setZoomLevel] = useState<number>(100)
+  const [visibleRange, setVisibleRange] = useState<[number, number]>([0, 100])
+
+  // Load stock details (price, name, etc)
+  useEffect(() => {
+    async function loadStockDetails() {
+      setDetailsLoading(true)
+      try {
+        const data = await fetchStockDetails(symbol)
+        setStockDetails(data)
+      } catch (error) {
+        console.error('Error loading stock details:', error)
+      } finally {
+        setDetailsLoading(false)
+      }
+    }
+
+    loadStockDetails()
+  }, [symbol])
+
+  // Get stock info from API data or fallback to mock
+  const stockInfo = stockDetails ? {
+    symbol,
+    name: stockDetails.name || getStockName(symbol),
+    price: stockDetails.price,
+    change: stockDetails.change,
+    changePercent: stockDetails.changePercent,
+    volume: stockDetails.volume,
+    marketCap: formatMarketCap(stockDetails.marketCap),
+    pe: stockDetails.pe,
+    eps: stockDetails.pe && stockDetails.price ? (stockDetails.price / stockDetails.pe).toFixed(2) : null,
+    dividend: stockDetails.dividend,
+    dividendYield: stockDetails.yield,
+  } : {
     symbol,
     name: getStockName(symbol),
-    price: 178.72,
-    change: 2.45,
-    changePercent: 1.39,
-    volume: 42_456_789,
-    marketCap: '2.87T',
-    pe: 28.4,
-    eps: 6.29,
-    dividend: 0.92,
-    dividendYield: 0.51,
+    price: 0,
+    change: 0,
+    changePercent: 0,
+    volume: 0,
+    marketCap: 'N/A',
+    pe: 0,
+    eps: 0,
+    dividend: 0,
+    dividendYield: 0,
   }
 
   // Technical indicators
@@ -91,36 +138,44 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
     { fund: 'Berkshire Hathaway', shares: 468_329_012, percentOwned: 2.6 },
   ]
 
+  // Load price history data
   useEffect(() => {
     async function loadStockData() {
       setLoading(true)
       try {
-        // Calculate date range based on timeframe
-        const endDate = new Date().toISOString().split('T')[0]
-        let startDate: string
-        
-        switch(timeframe) {
-          case '1m':
-            startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            break
-          case '3m':
-            startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            break
-          case '6m':
-            startDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            break
-          case '1y':
-            startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            break
-          case '5y':
-            startDate = new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            break
-          default:
-            startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        // Map local timeframe format to API timeframe format
+        const apiTimeframeMap: Record<string, '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'> = {
+          '1m': '1M',
+          '3m': '3M', 
+          '6m': '3M', // API doesn't have 6M, fallback to 3M
+          '1y': '1Y',
+          '5y': '5Y'
         }
         
-        const data = await fetchStockData(symbol, startDate, endDate)
-        setStockData(data)
+        const apiTimeframe = apiTimeframeMap[timeframe]
+        const data = await fetchPriceHistory(symbol, apiTimeframe) as StockHistoryPoint[]
+        
+        // Check if data is a valid array
+        if (!Array.isArray(data)) {
+          console.error('Invalid data format received:', data)
+          return
+        }
+        
+        // Transform price history data to StockDataPoint format
+        const chartData: StockDataPoint[] = data.map((point: StockHistoryPoint) => ({
+          date: point.date,
+          // If we have full OHLC data, use it
+          open: point.open || point.price * 0.998,  // Use provided open or estimate from price
+          high: point.high || point.price * 1.005,  // Use provided high or estimate from price
+          low: point.low || point.price * 0.995,    // Use provided low or estimate from price
+          close: point.price, // Use price as close
+          volume: point.volume || Math.round(point.price * 1000)  // Use provided volume or mock volume
+        }))
+        
+        setStockData(chartData)
+        // Reset zoom when changing timeframe
+        setZoomLevel(100)
+        setVisibleRange([0, 100])
       } catch (error) {
         console.error('Error loading stock data:', error)
       } finally {
@@ -131,6 +186,61 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
     loadStockData()
   }, [symbol, timeframe])
 
+  // Calculate visible data based on zoom level
+  const visibleData = React.useMemo(() => {
+    if (!stockData.length) return []
+    
+    const start = Math.floor(stockData.length * (visibleRange[0] / 100))
+    const end = Math.ceil(stockData.length * (visibleRange[1] / 100))
+    
+    return stockData.slice(start, end)
+  }, [stockData, visibleRange])
+
+  // Handle zoom in/out
+  const handleZoomIn = () => {
+    if (zoomLevel <= 25) return
+    const newZoomLevel = Math.max(25, zoomLevel - 25)
+    const visibleWidth = newZoomLevel
+    const currentCenter = (visibleRange[0] + visibleRange[1]) / 2
+    
+    const newStart = Math.max(0, currentCenter - visibleWidth / 2)
+    const newEnd = Math.min(100, newStart + visibleWidth)
+    
+    setZoomLevel(newZoomLevel)
+    setVisibleRange([newStart, newEnd])
+  }
+
+  const handleZoomOut = () => {
+    if (zoomLevel >= 100) {
+      setZoomLevel(100)
+      setVisibleRange([0, 100])
+      return
+    }
+    
+    const newZoomLevel = Math.min(100, zoomLevel + 25)
+    const visibleWidth = newZoomLevel
+    const currentCenter = (visibleRange[0] + visibleRange[1]) / 2
+    
+    const newStart = Math.max(0, currentCenter - visibleWidth / 2)
+    const newEnd = Math.min(100, newStart + visibleWidth)
+    
+    setZoomLevel(newZoomLevel)
+    setVisibleRange([newStart, newEnd])
+  }
+
+  // Handle slider change
+  const handleRangeChange = (value: number[]) => {
+    if (value.length === 1) {
+      // If we only get one value, use it as the center of our visible range
+      const center = value[0]
+      const halfWidth = zoomLevel / 2
+      setVisibleRange([
+        Math.max(0, center - halfWidth),
+        Math.min(100, center + halfWidth)
+      ])
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -140,10 +250,19 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
         </div>
         <div className="flex items-center gap-2">
           <div className="text-right">
-            <div className="text-2xl font-bold">${stockInfo.price.toFixed(2)}</div>
-            <div className={`text-sm ${stockInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {stockInfo.change >= 0 ? '+' : ''}{stockInfo.change.toFixed(2)} ({stockInfo.changePercent.toFixed(2)}%)
-            </div>
+            {detailsLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">${stockInfo.price?.toFixed(2) || 'N/A'}</div>
+                <div className={`text-sm ${stockInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {stockInfo.change >= 0 ? '+' : ''}{stockInfo.change?.toFixed(2) || 'N/A'} ({stockInfo.changePercent?.toFixed(2) || 'N/A'}%)
+                </div>
+              </>
+            )}
           </div>
           <Button>Add to Portfolio</Button>
         </div>
@@ -168,14 +287,46 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
             ))}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           {loading ? (
-            <div className="flex h-[400px] items-center justify-center">
+            <div className="flex h-[500px] items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <span className="ml-2">Loading chart data...</span>
             </div>
           ) : (
-            <CandlestickChart data={stockData} />
+            <>
+              <div className="h-[500px]">
+                <CandlestickChart data={visibleData.length ? visibleData : stockData} />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel <= 25}
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <div className="relative flex-1">
+                  <Slider
+                    defaultValue={[50]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    onValueChange={handleRangeChange}
+                    disabled={zoomLevel >= 100}
+                  />
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel >= 100}
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -196,19 +347,19 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <div>
                   <div className="text-sm font-medium text-muted-foreground">Market Cap</div>
-                  <div className="font-medium">${stockInfo.marketCap}</div>
+                  <div className="font-medium">{stockInfo.marketCap}</div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-muted-foreground">P/E Ratio</div>
-                  <div className="font-medium">{stockInfo.pe}</div>
+                  <div className="font-medium">{stockInfo.pe || 'N/A'}</div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-muted-foreground">EPS</div>
-                  <div className="font-medium">${stockInfo.eps}</div>
+                  <div className="font-medium">${stockInfo.eps || 'N/A'}</div>
                 </div>
                 <div>
                   <div className="text-sm font-medium text-muted-foreground">Dividend Yield</div>
-                  <div className="font-medium">{stockInfo.dividendYield}%</div>
+                  <div className="font-medium">{stockInfo.dividendYield ? `${stockInfo.dividendYield}%` : 'N/A'}</div>
                 </div>
               </div>
               
@@ -302,7 +453,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                       </div>
                       <div className="my-2 flex items-center">
                         <div className="h-0.5 flex-1 bg-muted"></div>
-                        <span className="mx-2 font-medium">${stockInfo.price.toFixed(2)}</span>
+                        <span className="mx-2 font-medium">${stockInfo.price?.toFixed(2) || 'N/A'}</span>
                         <div className="h-0.5 flex-1 bg-muted"></div>
                       </div>
                       <div className="mb-1 flex items-center justify-between">
@@ -438,4 +589,18 @@ function getStockName(symbol: string): string {
   }
   
   return stockNames[symbol] || symbol
+}
+
+function formatMarketCap(marketCap: number): string {
+  if (!marketCap) return 'N/A'
+  
+  if (marketCap >= 1e12) {
+    return `$${(marketCap / 1e12).toFixed(2)}T`
+  } else if (marketCap >= 1e9) {
+    return `$${(marketCap / 1e9).toFixed(2)}B`
+  } else if (marketCap >= 1e6) {
+    return `$${(marketCap / 1e6).toFixed(2)}M`
+  } else {
+    return `$${marketCap.toLocaleString()}`
+  }
 } 

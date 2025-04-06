@@ -8,6 +8,8 @@ import uvicorn
 import os
 import json
 from pathlib import Path
+import requests
+from dotenv import load_dotenv
 
 # Import hedge fund components
 # We'll update these imports as we refactor the codebase
@@ -116,6 +118,9 @@ class CustomAgentRequest(BaseModel):
             ]
         }
     }
+
+# Load environment variables
+load_dotenv()
 
 # Root endpoint
 @app.get("/")
@@ -498,8 +503,83 @@ async def delete_simulation(simulation_id: str):
 async def get_stocks():
     """Get a list of available stocks"""
     try:
-        # In a real implementation, we would fetch this from a database or external API
-        # For now, we'll return mock data
+        # Check if we should use real data
+        use_real_data = os.getenv("USE_REAL_DATA", "false").lower() == "true"
+        alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        
+        if use_real_data and alpha_vantage_api_key:
+            # Get popular stocks from Alpha Vantage API
+            # For the listing status endpoint
+            url = f"https://www.alphavantage.co/query?function=LISTING_STATUS&apikey={alpha_vantage_api_key}"
+            response = requests.get(url)
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, 
+                                   detail="Failed to fetch data from Alpha Vantage")
+            
+            # Alpha Vantage returns CSV data for this endpoint
+            lines = response.text.strip().split('\n')
+            headers = lines[0].split(',')
+            
+            # Get just the first few stocks (limit to avoid hitting rate limits)
+            stock_symbols = []
+            for i in range(1, min(21, len(lines))):
+                values = lines[i].split(',')
+                stock_data = dict(zip(headers, values))
+                if stock_data.get('status') == 'Active' and stock_data.get('exchange') == 'NYSE':
+                    stock_symbols.append(stock_data.get('symbol'))
+                if len(stock_symbols) >= 10:
+                    break
+            
+            # Now get quote data for these symbols
+            stocks = []
+            for symbol in stock_symbols[:10]:  # Limit to 10 stocks to avoid API limits
+                try:
+                    quote_url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={alpha_vantage_api_key}"
+                    quote_response = requests.get(quote_url)
+                    
+                    if quote_response.status_code == 200:
+                        quote_data = quote_response.json().get('Global Quote', {})
+                        
+                        if quote_data:
+                            price = float(quote_data.get('05. price', 0))
+                            prev_close = float(quote_data.get('08. previous close', 0))
+                            change = float(quote_data.get('09. change', 0))
+                            change_percent = float(quote_data.get('10. change percent', '0%').replace('%', ''))
+                            
+                            # Get company name (optional, as it requires another API call)
+                            company_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={alpha_vantage_api_key}"
+                            company_response = requests.get(company_url)
+                            company_name = symbol
+                            sector = "Unknown"
+                            market_cap = 0
+                            
+                            if company_response.status_code == 200:
+                                company_data = company_response.json()
+                                company_name = company_data.get('Name', symbol)
+                                sector = company_data.get('Sector', 'Unknown')
+                                market_cap = float(company_data.get('MarketCapitalization', 0))
+                            
+                            stocks.append({
+                                "symbol": symbol,
+                                "name": company_name,
+                                "price": price,
+                                "change": change,
+                                "changePercent": change_percent,
+                                "marketCap": market_cap,
+                                "volume": float(quote_data.get('06. volume', 0)),
+                                "sector": sector
+                            })
+                except Exception as e:
+                    # Skip this stock if there's an error
+                    print(f"Error fetching data for {symbol}: {str(e)}")
+                    continue
+            
+            # If we got stocks data, return it
+            if stocks:
+                return stocks
+        
+        # Fallback to mock data if real data fetch failed or is disabled
         stocks = [
             {
                 "symbol": "AAPL",
@@ -561,8 +641,51 @@ async def get_stocks():
 async def get_stock_details(symbol: str):
     """Get detailed information about a specific stock"""
     try:
-        # In a real implementation, we would fetch this from a database or external API
-        # For now, we'll return mock data based on the symbol
+        # Check if we should use real data
+        use_real_data = os.getenv("USE_REAL_DATA", "false").lower() == "true"
+        alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        
+        if use_real_data and alpha_vantage_api_key:
+            # Get company overview
+            overview_url = f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={alpha_vantage_api_key}"
+            overview_response = requests.get(overview_url)
+            
+            if overview_response.status_code == 200:
+                overview_data = overview_response.json()
+                
+                if overview_data and 'Symbol' in overview_data:
+                    # Get latest quote
+                    quote_url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={alpha_vantage_api_key}"
+                    quote_response = requests.get(quote_url)
+                    
+                    quote_data = {}
+                    if quote_response.status_code == 200:
+                        quote_data = quote_response.json().get('Global Quote', {})
+                    
+                    price = float(quote_data.get('05. price', 0)) if quote_data else 0
+                    change = float(quote_data.get('09. change', 0)) if quote_data else 0
+                    change_percent = float(quote_data.get('10. change percent', '0%').replace('%', '')) if quote_data else 0
+                    
+                    # Prepare stock details
+                    return {
+                        "symbol": symbol,
+                        "name": overview_data.get('Name', symbol),
+                        "price": price,
+                        "change": change,
+                        "changePercent": change_percent,
+                        "marketCap": float(overview_data.get('MarketCapitalization', 0)),
+                        "volume": float(quote_data.get('06. volume', 0)) if quote_data else 0,
+                        "sector": overview_data.get('Sector', 'Unknown'),
+                        "high52": float(overview_data.get('52WeekHigh', 0)),
+                        "low52": float(overview_data.get('52WeekLow', 0)),
+                        "pe": float(overview_data.get('PERatio', 0)),
+                        "dividend": float(overview_data.get('DividendPerShare', 0)),
+                        "yield": float(overview_data.get('DividendYield', 0)) * 100 if overview_data.get('DividendYield') else 0,
+                        "beta": float(overview_data.get('Beta', 0)),
+                        "description": overview_data.get('Description', f"No description available for {symbol}")
+                    }
+        
+        # Fallback to mock data
         stocks = {
             "AAPL": {
                 "symbol": "AAPL",
@@ -621,7 +744,7 @@ async def get_stock_details(symbol: str):
         if symbol in stocks:
             return stocks[symbol]
         
-        # Otherwise, generate a generic mock response
+        # Otherwise, use the existing mock data generation logic
         return {
             "symbol": symbol,
             "name": f"{symbol} Corporation",
@@ -654,6 +777,79 @@ async def get_stock_history(
         if timeframe not in valid_timeframes:
             raise HTTPException(status_code=400, detail=f"Invalid timeframe. Use one of: {', '.join(valid_timeframes)}")
         
+        # Check if we should use real data
+        use_real_data = os.getenv("USE_REAL_DATA", "false").lower() == "true"
+        alpha_vantage_api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        
+        if use_real_data and alpha_vantage_api_key:
+            # Map our timeframes to Alpha Vantage's output size and function
+            function = "TIME_SERIES_DAILY"
+            outputsize = "compact"  # Default 100 data points
+            
+            if timeframe == "1D":
+                function = "TIME_SERIES_INTRADAY"
+                interval = "5min"
+            elif timeframe == "5Y":
+                outputsize = "full"  # Full history (up to 20 years)
+            
+            # Build API URL based on timeframe
+            if timeframe == "1D":
+                url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&interval={interval}&apikey={alpha_vantage_api_key}"
+            else:
+                url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&outputsize={outputsize}&apikey={alpha_vantage_api_key}"
+            
+            response = requests.get(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Extract the time series data
+                time_series_key = None
+                for key in data.keys():
+                    if "Time Series" in key:
+                        time_series_key = key
+                        break
+                
+                if time_series_key and data.get(time_series_key):
+                    time_series = data.get(time_series_key, {})
+                    
+                    # Convert to our expected format
+                    history = []
+                    for date_str, values in time_series.items():
+                        # Skip data points beyond our timeframe
+                        date_obj = datetime.strptime(date_str.split(' ')[0], "%Y-%m-%d").date()
+                        
+                        # Filter based on timeframe
+                        end_date = date.today()
+                        if timeframe == "1W" and (end_date - date_obj).days > 7:
+                            continue
+                        elif timeframe == "1M" and (end_date - date_obj).days > 30:
+                            continue
+                        elif timeframe == "3M" and (end_date - date_obj).days > 90:
+                            continue
+                        elif timeframe == "1Y" and (end_date - date_obj).days > 365:
+                            continue
+                        
+                        # Extract OHLC values
+                        history.append({
+                            "date": date_str,
+                            "open": float(values.get("1. open", 0)),
+                            "high": float(values.get("2. high", 0)),
+                            "low": float(values.get("3. low", 0)),
+                            "close": float(values.get("4. close", 0)),
+                            "volume": int(float(values.get("5. volume", 0)))
+                        })
+                    
+                    # Sort by date (newest first)
+                    history.sort(key=lambda x: x["date"], reverse=True)
+                    
+                    return {
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "history": history
+                    }
+        
+        # If real data fetch failed or is disabled, fall back to mock data
         # Calculate date range based on timeframe
         end_date = date.today()
         

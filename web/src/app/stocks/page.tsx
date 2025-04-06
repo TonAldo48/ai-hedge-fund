@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowRight, ArrowUpDown, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,23 +14,51 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 
-// Mock data - in a real app, this would come from an API
-const stocksData = [
-  { symbol: 'AAPL', name: 'Apple Inc.', price: 187.32, change: 1.24, changePercent: 0.67 },
-  { symbol: 'MSFT', name: 'Microsoft Corporation', price: 417.88, change: -2.36, changePercent: -0.56 },
-  { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 176.44, change: 5.78, changePercent: 3.39 },
-  { symbol: 'AMZN', name: 'Amazon.com, Inc.', price: 178.12, change: 0.56, changePercent: 0.32 },
-  { symbol: 'NVDA', name: 'NVIDIA Corporation', price: 879.90, change: 32.15, changePercent: 3.79 },
-  { symbol: 'TSLA', name: 'Tesla, Inc.', price: 172.63, change: -8.54, changePercent: -4.72 },
-  { symbol: 'META', name: 'Meta Platforms, Inc.', price: 474.99, change: 12.87, changePercent: 2.78 },
-  { symbol: 'NFLX', name: 'Netflix, Inc.', price: 632.41, change: -3.45, changePercent: -0.54 },
-]
+// Define the stock type
+interface Stock {
+  symbol: string
+  name: string
+  price: number
+  change: number
+  changePercent: number
+  marketCap?: number
+  volume?: number
+  sector?: string
+}
 
 export default function StocksPage() {
   const [search, setSearch] = useState('')
+  const [stocks, setStocks] = useState<Stock[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
-  const filteredStocks = stocksData.filter((stock) =>
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/stocks')
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch stocks: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        setStocks(data)
+        setError(null)
+      } catch (err) {
+        console.error('Error fetching stocks:', err)
+        setError('Failed to load stocks data. Please try again later.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchStocks()
+  }, [])
+  
+  const filteredStocks = stocks.filter((stock) =>
     stock.symbol.toLowerCase().includes(search.toLowerCase()) ||
     stock.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -67,41 +95,67 @@ export default function StocksPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Change</TableHead>
-                <TableHead className="text-right">% Change</TableHead>
-                <TableHead className="text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStocks.map((stock) => (
-                <TableRow key={stock.symbol}>
-                  <TableCell className="font-medium">{stock.symbol}</TableCell>
-                  <TableCell>{stock.name}</TableCell>
-                  <TableCell className="text-right">${stock.price.toFixed(2)}</TableCell>
-                  <TableCell className={`text-right ${stock.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}
-                  </TableCell>
-                  <TableCell className={`text-right ${stock.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/stocks/${stock.symbol}`}>
-                        View
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TableCell>
+          {error ? (
+            <div className="text-center py-4 text-red-500">
+              {error}
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Change</TableHead>
+                  <TableHead className="text-right">% Change</TableHead>
+                  <TableHead className="text-right"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  // Display skeletons while loading
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredStocks.length > 0 ? (
+                  filteredStocks.map((stock) => (
+                    <TableRow key={stock.symbol}>
+                      <TableCell className="font-medium">{stock.symbol}</TableCell>
+                      <TableCell>{stock.name}</TableCell>
+                      <TableCell className="text-right">${stock.price.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right ${stock.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}
+                      </TableCell>
+                      <TableCell className={`text-right ${stock.changePercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {stock.changePercent >= 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/stocks/${stock.symbol}`}>
+                            View
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                      No stocks found matching your search.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>
