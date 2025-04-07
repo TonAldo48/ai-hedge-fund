@@ -9,19 +9,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# List directory contents to debug
-RUN ls -la
+# Copy requirements.txt first for better caching
+COPY requirements.txt /app/
 
-# Copy everything first
-COPY . /app/
-
-# List directory contents after copy to verify requirements.txt exists
+# List directory contents to verify requirements.txt exists
 RUN ls -la /app/
 RUN cat /app/requirements.txt
 
 # Install dependencies with verbose output
 RUN pip install --upgrade pip && \
     pip install --verbose --no-cache-dir -r /app/requirements.txt
+
+# Copy everything else
+COPY . /app/
 
 # Expose the port
 EXPOSE 8000
