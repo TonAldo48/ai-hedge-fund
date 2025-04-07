@@ -2,11 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy everything first to ensure requirements.txt is found
-COPY . .
+# List directory contents to debug
+RUN ls -la
+
+# Copy everything first
+COPY . /app/
+
+# List directory contents after copy to verify requirements.txt exists
+RUN ls -la /app/
 
 # Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Expose the port
 EXPOSE 8000
