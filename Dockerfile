@@ -20,6 +20,12 @@ RUN ls -la /app/
 RUN pip install --upgrade pip && \
     pip install --verbose --no-cache-dir -r /app/requirements.txt || echo "Failed to install from requirements.txt"
 
+# Ensure uvicorn is installed
+RUN pip install uvicorn fastapi
+
+# Verify uvicorn is installed and in the path
+RUN which uvicorn || echo "uvicorn not found in PATH"
+
 # Expose the port
 EXPOSE 8000
 
