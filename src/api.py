@@ -13,8 +13,8 @@ from dotenv import load_dotenv
 
 # Import hedge fund components
 # We'll update these imports as we refactor the codebase
-from models import load_model
-from analyst import get_analyst_by_name
+from src.models import load_model
+from src.analyst import get_analyst_by_name
 
 # Create FastAPI app
 app = FastAPI(
