@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "apexcharts": "^4.5.0",
+    "dotenv": "^16.4.7",
+    "lightweight-charts": "^5.0.5",
+    "react-apexcharts": "^1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0"
+  }
+}

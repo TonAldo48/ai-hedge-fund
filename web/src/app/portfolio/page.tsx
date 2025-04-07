@@ -71,7 +71,13 @@ export default function PortfolioPage() {
     portfolioHistory 
   } = portfolioData
 
-  const allocationData = holdings.map(h => ({
+  // Calculate weight for each holding
+  const holdingsWithWeight = holdings.map(holding => ({
+    ...holding,
+    weight: (holding.value / totalValue) * 100
+  }))
+
+  const allocationData = holdingsWithWeight.map(h => ({
     name: h.name,
     symbol: h.symbol,
     value: h.value
@@ -170,17 +176,17 @@ export default function PortfolioPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {holdings.map((holding) => (
+                  {holdingsWithWeight.map((holding) => (
                     <TableRow key={holding.symbol}>
                       <TableCell className="font-medium">{holding.symbol}</TableCell>
                       <TableCell>{holding.name}</TableCell>
                       <TableCell className="text-right">{holding.shares}</TableCell>
-                      <TableCell className="text-right">${holding.avgCost.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">${holding.price.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">${holding.averageCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">${holding.currentPrice.toFixed(2)}</TableCell>
                       <TableCell className="text-right">${holding.value.toLocaleString()}</TableCell>
                       <TableCell className="text-right">{holding.weight.toFixed(1)}%</TableCell>
-                      <TableCell className={`text-right ${holding.gain >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                        {holding.gain >= 0 ? '+' : ''}{holding.gain.toFixed(2)}%
+                      <TableCell className={`text-right ${holding.totalGainPercent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {holding.totalGainPercent >= 0 ? '+' : ''}{holding.totalGainPercent.toFixed(2)}%
                       </TableCell>
                     </TableRow>
                   ))}

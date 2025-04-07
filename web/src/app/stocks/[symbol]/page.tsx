@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { CandlestickChart, StockDataPoint } from '@/components/charts/candlestick-chart'
-import { fetchPriceHistory, fetchStockDetails } from '@/lib/api'
+import TradingViewChart from '@/components/charts/trading-view-chart'
+import { PriceChart } from '@/components/charts/price-chart'
+import { fetchPriceHistory, fetchStockDetails, StockData as ApiStockDetails } from '@/lib/api'
 import {
   Table,
   TableBody,
@@ -53,47 +54,124 @@ const aiInsights = [
   },
 ]
 
-// Update the interface used in fetchPriceHistory to include OHLC data
-interface StockHistoryPoint {
-  date: string;
-  price: number;
+// Type for the raw data points expected from fetchPriceHistory
+// Make OHLC optional initially as fetch might fallback
+interface FetchedStockHistoryPoint {
+  date: string; // YYYY-MM-DD format
+  price: number; // Close price
   open?: number;
   high?: number;
   low?: number;
-  volume?: number;
+  volume?: number; // Optional volume
 }
 
 export default function StockDetailPage({ params }: StockDetailPageProps) {
-  // Access symbol from params using React.use() for Next.js 15 compatibility
   const unwrappedParams = React.use(params as any) as { symbol: string }
   const symbol = unwrappedParams.symbol
-  const [stockData, setStockData] = useState<StockDataPoint[]>([])
-  const [stockDetails, setStockDetails] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [stockDetails, setStockDetails] = useState<ApiStockDetails | null>(null)
+  const [loading, setLoading] = useState(false)
   const [detailsLoading, setDetailsLoading] = useState(true)
-  const [timeframe, setTimeframe] = useState<'1m'|'3m'|'6m'|'1y'|'5y'>('3m')
-  const [zoomLevel, setZoomLevel] = useState<number>(100)
-  const [visibleRange, setVisibleRange] = useState<[number, number]>([0, 100])
+  const [apiError, setApiError] = useState<string | null>(null)
+  
+  // Track client-side rendering
+  const [isClient, setIsClient] = useState(false);
+  
+  // Set initial data source without timestamp to avoid hydration errors
+  const [dataSource, setDataSource] = useState<string>('TradingView');
+  const [lastUpdated, setLastUpdated] = useState<string>('');
 
-  // Load stock details (price, name, etc)
+  // Set isClient to true after initial render
+  useEffect(() => {
+    setIsClient(true);
+    // Now it's safe to set the timestamp
+    if (lastUpdated === '') {
+      setLastUpdated(new Date().toLocaleTimeString());
+    }
+  }, [lastUpdated]);
+  
+  // Create fallback data when APIs fail
+  const getFallbackStockData = (symbol: string): ApiStockDetails => {
+    const now = new Date();
+    const randomPrice = (Math.random() * 500 + 50).toFixed(2);
+    const randomChange = (Math.random() * 10 - 5).toFixed(2);
+    const randomPercent = (Math.random() * 5 - 2.5).toFixed(2);
+    
+    return {
+      symbol,
+      name: `${symbol} Stock`,
+      price: parseFloat(randomPrice),
+      change: parseFloat(randomChange),
+      changePercent: parseFloat(randomPercent),
+      marketCap: Math.random() * 1000000000,
+      volume: Math.floor(Math.random() * 10000000),
+      avgVolume: Math.floor(Math.random() * 15000000),
+      sector: 'Technology',
+      high52: parseFloat(randomPrice) * 1.5,
+      low52: parseFloat(randomPrice) * 0.7,
+      pe: Math.random() * 30 + 10,
+      dividend: Math.random() * 2,
+      yield: Math.random() * 3,
+      source: 'Mock Data (API Unavailable)',
+      lastUpdated: now.toISOString(),
+    };
+  };
+
+  // Load stock details
   useEffect(() => {
     async function loadStockDetails() {
       setDetailsLoading(true)
+      setApiError(null)
       try {
         const data = await fetchStockDetails(symbol)
-        setStockDetails(data)
+        
+        if (data) {
+          setStockDetails(data)
+          // Store the source of the price data
+          if (data.source) {
+            setDataSource(data.source);
+          } else {
+            setDataSource(data.price ? 'API Data' : 'TradingView');
+          }
+        } else {
+          // Use fallback mock data if API fails
+          console.warn(`No data returned for ${symbol}, using fallback data`);
+          const fallbackData = getFallbackStockData(symbol);
+          setStockDetails(fallbackData);
+          setDataSource('Mock Data (API Unavailable)');
+          setApiError('Unable to fetch real stock data. Showing mock data.');
+        }
+        
+        // Only update timestamp on client side after initial render
+        if (isClient) {
+          setLastUpdated(new Date().toLocaleTimeString());
+        }
       } catch (error) {
         console.error('Error loading stock details:', error)
+        // Use fallback mock data if API fails
+        const fallbackData = getFallbackStockData(symbol);
+        setStockDetails(fallbackData);
+        setDataSource('Mock Data (API Error)');
+        setApiError('API Error: Unable to fetch stock data. Showing mock data.');
       } finally {
         setDetailsLoading(false)
       }
     }
-
     loadStockDetails()
-  }, [symbol])
+  }, [symbol, isClient])
 
-  // Get stock info from API data or fallback to mock
-  const stockInfo = stockDetails ? {
+  // We don't need the fetchPriceHistory useEffect anymore since TradingView manages that
+  
+  // Get the most recent price from stock details
+  const latestPrice = useMemo(() => {
+    return stockDetails?.price || null;
+  }, [stockDetails]);
+
+  // Get stock info
+  const stockInfo = useMemo(() => { 
+    if (detailsLoading) return { symbol, name: getStockName(symbol), price: 0, change: 0, changePercent: 0, volume: 0, marketCap: 'N/A', pe: 0, eps: 0, dividend: 0, dividendYield: 0 };
+    if (!stockDetails) return { symbol, name: getStockName(symbol), price: 0, change: 0, changePercent: 0, volume: 0, marketCap: 'N/A', pe: 0, eps: 0, dividend: 0, dividendYield: 0 }; // Handle null case
+    
+    return {
     symbol,
     name: stockDetails.name || getStockName(symbol),
     price: stockDetails.price,
@@ -105,19 +183,8 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
     eps: stockDetails.pe && stockDetails.price ? (stockDetails.price / stockDetails.pe).toFixed(2) : null,
     dividend: stockDetails.dividend,
     dividendYield: stockDetails.yield,
-  } : {
-    symbol,
-    name: getStockName(symbol),
-    price: 0,
-    change: 0,
-    changePercent: 0,
-    volume: 0,
-    marketCap: 'N/A',
-    pe: 0,
-    eps: 0,
-    dividend: 0,
-    dividendYield: 0,
-  }
+    }
+  }, [symbol, stockDetails, detailsLoading]);
 
   // Technical indicators
   const technicalIndicators = [
@@ -138,109 +205,6 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
     { fund: 'Berkshire Hathaway', shares: 468_329_012, percentOwned: 2.6 },
   ]
 
-  // Load price history data
-  useEffect(() => {
-    async function loadStockData() {
-      setLoading(true)
-      try {
-        // Map local timeframe format to API timeframe format
-        const apiTimeframeMap: Record<string, '1D' | '1W' | '1M' | '3M' | '1Y' | '5Y'> = {
-          '1m': '1M',
-          '3m': '3M', 
-          '6m': '3M', // API doesn't have 6M, fallback to 3M
-          '1y': '1Y',
-          '5y': '5Y'
-        }
-        
-        const apiTimeframe = apiTimeframeMap[timeframe]
-        const data = await fetchPriceHistory(symbol, apiTimeframe) as StockHistoryPoint[]
-        
-        // Check if data is a valid array
-        if (!Array.isArray(data)) {
-          console.error('Invalid data format received:', data)
-          return
-        }
-        
-        // Transform price history data to StockDataPoint format
-        const chartData: StockDataPoint[] = data.map((point: StockHistoryPoint) => ({
-          date: point.date,
-          // If we have full OHLC data, use it
-          open: point.open || point.price * 0.998,  // Use provided open or estimate from price
-          high: point.high || point.price * 1.005,  // Use provided high or estimate from price
-          low: point.low || point.price * 0.995,    // Use provided low or estimate from price
-          close: point.price, // Use price as close
-          volume: point.volume || Math.round(point.price * 1000)  // Use provided volume or mock volume
-        }))
-        
-        setStockData(chartData)
-        // Reset zoom when changing timeframe
-        setZoomLevel(100)
-        setVisibleRange([0, 100])
-      } catch (error) {
-        console.error('Error loading stock data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadStockData()
-  }, [symbol, timeframe])
-
-  // Calculate visible data based on zoom level
-  const visibleData = React.useMemo(() => {
-    if (!stockData.length) return []
-    
-    const start = Math.floor(stockData.length * (visibleRange[0] / 100))
-    const end = Math.ceil(stockData.length * (visibleRange[1] / 100))
-    
-    return stockData.slice(start, end)
-  }, [stockData, visibleRange])
-
-  // Handle zoom in/out
-  const handleZoomIn = () => {
-    if (zoomLevel <= 25) return
-    const newZoomLevel = Math.max(25, zoomLevel - 25)
-    const visibleWidth = newZoomLevel
-    const currentCenter = (visibleRange[0] + visibleRange[1]) / 2
-    
-    const newStart = Math.max(0, currentCenter - visibleWidth / 2)
-    const newEnd = Math.min(100, newStart + visibleWidth)
-    
-    setZoomLevel(newZoomLevel)
-    setVisibleRange([newStart, newEnd])
-  }
-
-  const handleZoomOut = () => {
-    if (zoomLevel >= 100) {
-      setZoomLevel(100)
-      setVisibleRange([0, 100])
-      return
-    }
-    
-    const newZoomLevel = Math.min(100, zoomLevel + 25)
-    const visibleWidth = newZoomLevel
-    const currentCenter = (visibleRange[0] + visibleRange[1]) / 2
-    
-    const newStart = Math.max(0, currentCenter - visibleWidth / 2)
-    const newEnd = Math.min(100, newStart + visibleWidth)
-    
-    setZoomLevel(newZoomLevel)
-    setVisibleRange([newStart, newEnd])
-  }
-
-  // Handle slider change
-  const handleRangeChange = (value: number[]) => {
-    if (value.length === 1) {
-      // If we only get one value, use it as the center of our visible range
-      const center = value[0]
-      const halfWidth = zoomLevel / 2
-      setVisibleRange([
-        Math.max(0, center - halfWidth),
-        Math.min(100, center + halfWidth)
-      ])
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -257,10 +221,24 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
               </div>
             ) : (
               <>
-                <div className="text-2xl font-bold">${stockInfo.price?.toFixed(2) || 'N/A'}</div>
-                <div className={`text-sm ${stockInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {stockInfo.change >= 0 ? '+' : ''}{stockInfo.change?.toFixed(2) || 'N/A'} ({stockInfo.changePercent?.toFixed(2) || 'N/A'}%)
+                <div className="text-2xl font-bold">
+                  {latestPrice !== null && latestPrice !== stockInfo.price ? (
+                    <>
+                      <span className="text-sm text-muted-foreground mr-2 line-through">${stockInfo.price?.toFixed(2) ?? 'N/A'}</span>
+                      <span>${latestPrice?.toFixed(2) ?? 'N/A'}</span>
+                    </>
+                  ) : (
+                    <>${stockInfo.price?.toFixed(2) ?? 'N/A'}</>
+                  )}
                 </div>
+                <div className={`text-sm ${stockInfo.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {stockInfo.change >= 0 ? '+' : ''}{stockInfo.change?.toFixed(2) ?? 'N/A'} ({stockInfo.changePercent?.toFixed(2) ?? 'N/A'}%)
+                </div>
+                {isClient && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Data: {dataSource} {lastUpdated && `· Updated: ${lastUpdated}`}
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -268,66 +246,30 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Price Chart</CardTitle>
-            <CardDescription>Historical price data for {symbol}</CardDescription>
-          </div>
-          <div className="flex gap-1">
-            {(['1m', '3m', '6m', '1y', '5y'] as const).map(period => (
-              <Button 
-                key={period} 
-                variant={timeframe === period ? 'default' : 'outline'} 
-                size="sm"
-                onClick={() => setTimeframe(period)}
-              >
-                {period}
-              </Button>
-            ))}
+      {apiError && (
+        <div className="p-4 border border-orange-200 bg-orange-50 dark:bg-orange-950 dark:border-orange-800 rounded-md text-orange-800 dark:text-orange-200 mb-4">
+          <p>{apiError}</p>
+        </div>
+      )}
+
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>TradingView Chart</CardTitle>
+              <CardDescription>
+                Interactive chart for {symbol}
+              </CardDescription>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="flex h-[500px] items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-2">Loading chart data...</span>
-            </div>
-          ) : (
-            <>
-              <div className="h-[500px]">
-                <CandlestickChart data={visibleData.length ? visibleData : stockData} />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={handleZoomIn}
-                  disabled={zoomLevel <= 25}
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <div className="relative flex-1">
-                  <Slider
-                    defaultValue={[50]}
-                    min={0}
-                    max={100}
-                    step={1}
-                    onValueChange={handleRangeChange}
-                    disabled={zoomLevel >= 100}
-                  />
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={handleZoomOut}
-                  disabled={zoomLevel >= 100}
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-              </div>
-            </>
-          )}
+        <CardContent>
+          <TradingViewChart 
+            symbol={symbol}
+            height={400}
+            dataSource="TradingView"
+            lastUpdated={isClient ? lastUpdated : ''}
+          />
         </CardContent>
       </Card>
 
@@ -577,30 +519,20 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
 }
 
 function getStockName(symbol: string): string {
-  const stockNames: Record<string, string> = {
-    'AAPL': 'Apple Inc.',
-    'MSFT': 'Microsoft Corporation',
-    'GOOGL': 'Alphabet Inc.',
-    'AMZN': 'Amazon.com, Inc.',
-    'NVDA': 'NVIDIA Corporation',
-    'TSLA': 'Tesla, Inc.',
-    'META': 'Meta Platforms, Inc.',
-    'NFLX': 'Netflix, Inc.',
-  }
-  
-  return stockNames[symbol] || symbol
+  const names: { [key: string]: string } = {
+    AAPL: 'Apple Inc.',
+    MSFT: 'Microsoft Corporation',
+    GOOGL: 'Alphabet Inc.',
+    AMZN: 'Amazon.com, Inc.',
+    TSLA: 'Tesla, Inc.',
+  };
+  return names[symbol.toUpperCase()] || 'Unknown Company';
 }
 
-function formatMarketCap(marketCap: number): string {
-  if (!marketCap) return 'N/A'
-  
-  if (marketCap >= 1e12) {
-    return `$${(marketCap / 1e12).toFixed(2)}T`
-  } else if (marketCap >= 1e9) {
-    return `$${(marketCap / 1e9).toFixed(2)}B`
-  } else if (marketCap >= 1e6) {
-    return `$${(marketCap / 1e6).toFixed(2)}M`
-  } else {
-    return `$${marketCap.toLocaleString()}`
-  }
-} 
+function formatMarketCap(value: number | undefined | null): string {
+  if (!value) return 'N/A';
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  return `$${value}`;
+}
