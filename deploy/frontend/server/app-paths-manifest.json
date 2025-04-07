@@ -1,0 +1,23 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/agents/[id]/route": "app/api/agents/[id]/route.js",
+  "/api/agents/route": "app/api/agents/route.js",
+  "/api/simulation/route": "app/api/simulation/route.js",
+  "/api/portfolio/route": "app/api/portfolio/route.js",
+  "/api/health/route": "app/api/health/route.js",
+  "/api/stocks/[symbol]/insights/route": "app/api/stocks/[symbol]/insights/route.js",
+  "/api/simulations/[id]/route": "app/api/simulations/[id]/route.js",
+  "/api/stocks/[symbol]/route": "app/api/stocks/[symbol]/route.js",
+  "/api/simulations/route": "app/api/simulations/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/api/stocks/route": "app/api/stocks/route.js",
+  "/api/stocks/[symbol]/history/route": "app/api/stocks/[symbol]/history/route.js",
+  "/agents/custom/page": "app/agents/custom/page.js",
+  "/portfolio/page": "app/portfolio/page.js",
+  "/agents/page": "app/agents/page.js",
+  "/page": "app/page.js",
+  "/stocks/[symbol]/page": "app/stocks/[symbol]/page.js",
+  "/agents/predefined/page": "app/agents/predefined/page.js",
+  "/stocks/page": "app/stocks/page.js",
+  "/simulation/page": "app/simulation/page.js"
+}

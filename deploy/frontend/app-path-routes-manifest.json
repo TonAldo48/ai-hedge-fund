@@ -1,0 +1,23 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/agents/[id]/route": "/api/agents/[id]",
+  "/api/agents/route": "/api/agents",
+  "/api/simulation/route": "/api/simulation",
+  "/api/portfolio/route": "/api/portfolio",
+  "/api/health/route": "/api/health",
+  "/api/stocks/[symbol]/insights/route": "/api/stocks/[symbol]/insights",
+  "/api/simulations/[id]/route": "/api/simulations/[id]",
+  "/api/stocks/[symbol]/route": "/api/stocks/[symbol]",
+  "/api/simulations/route": "/api/simulations",
+  "/favicon.ico/route": "/favicon.ico",
+  "/api/stocks/route": "/api/stocks",
+  "/api/stocks/[symbol]/history/route": "/api/stocks/[symbol]/history",
+  "/agents/custom/page": "/agents/custom",
+  "/portfolio/page": "/portfolio",
+  "/agents/page": "/agents",
+  "/page": "/",
+  "/stocks/[symbol]/page": "/stocks/[symbol]",
+  "/agents/predefined/page": "/agents/predefined",
+  "/stocks/page": "/stocks",
+  "/simulation/page": "/simulation"
+}

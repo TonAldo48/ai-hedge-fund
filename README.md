@@ -20,7 +20,7 @@ This system employs several agents working together:
 13. Risk Manager - Calculates risk metrics and sets position limits
 14. Portfolio Manager - Makes final trading decisions and generates orders
     
-<img width="1042" alt="Screenshot 2025-03-22 at 6 19 07 PM" src="https://github.com/user-attachments/assets/cbae3dcf-b571-490d-b0ad-3f0f035ac0d4" />
+<img width="1042" alt="Screenshot 2025-03-22 at 6 19 07 PM" src="https://github.com/user-attachments/assets/cbae3dcf-b571-490d-b0ad-3f0f035ac0d4" />
 
 
 **Note**: the system simulates trading decisions, it does not actually trade.
@@ -48,6 +48,9 @@ By using this software, you agree to use it solely for learning purposes.
   - [Usage](#usage)
     - [Running the Hedge Fund](#running-the-hedge-fund)
     - [Running the Backtester](#running-the-backtester)
+  - [Deployment](#deployment)
+    - [Quick Deployment](#quick-deployment)
+    - [Detailed Deployment Guide](#detailed-deployment-guide)
   - [Project Structure](#project-structure)
   - [Contributing](#contributing)
   - [Feature Requests](#feature-requests)
@@ -106,7 +109,7 @@ poetry run python src/main.py --ticker AAPL,MSFT,NVDA
 ```
 
 **Example Output:**
-<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
+<img width="992" alt="Screenshot 2025-01-06 at 5 50 17 PM" src="https://github.com/user-attachments/assets/e8ca04bf-9989-4a7d-a8b4-34e04666663b" />
 
 You can also specify a `--show-reasoning` flag to print the reasoning of each agent to the console.
 
@@ -126,13 +129,45 @@ poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA
 ```
 
 **Example Output:**
-<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
+<img width="941" alt="Screenshot 2025-01-06 at 5 47 52 PM" src="https://github.com/user-attachments/assets/00e794ea-8628-44e6-9a84-8f8a31ad3b47" />
 
 You can optionally specify the start and end dates to backtest over a specific time period.
 
 ```bash
 poetry run python src/backtester.py --ticker AAPL,MSFT,NVDA --start-date 2024-01-01 --end-date 2024-03-01
 ```
+
+## Deployment
+
+The AI Hedge Fund application consists of a Python FastAPI backend and a Next.js frontend. You can deploy both components to make the application accessible online.
+
+### Quick Deployment
+
+The easiest way to deploy the application:
+
+1. **Prepare for deployment**:
+   ```bash
+   # Run the deployment script
+   ./deploy.sh
+   ```
+
+2. **Frontend (Vercel)**:
+   - Go to [Vercel](https://vercel.com/new)
+   - Import your GitHub repository
+   - Set the root directory to `web`
+   - Set environment variable `NEXT_PUBLIC_API_URL` to your backend URL
+   - Deploy
+
+3. **Backend (Railway)**:
+   - Go to [Railway](https://railway.app/new)
+   - Select "Deploy from GitHub repo"
+   - Choose your repository
+   - Set environment variables from the `.env` file
+   - Deploy
+
+### Detailed Deployment Guide
+
+For more detailed deployment instructions, including alternative deployment options and configuration details, see the [DEPLOYMENT.md](DEPLOYMENT.md) file.
 
 ## Project Structure 
 ```
@@ -151,6 +186,7 @@ ai-hedge-fund/
 │   │   ├── api.py                # API tools
 │   ├── backtester.py             # Backtesting tools
 │   ├── main.py # Main entry point
+├── web/                          # Next.js frontend application
 ├── pyproject.toml
 ├── ...
 ```
