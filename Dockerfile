@@ -29,5 +29,5 @@ RUN which uvicorn || echo "uvicorn not found in PATH"
 # Expose the port
 EXPOSE 8000
 
-# Command to run the application
-CMD ["uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "${PORT:-8000}"] 
+# Command to run the application - using shell form to evaluate environment variables
+CMD uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-8000} 
