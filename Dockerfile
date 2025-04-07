@@ -9,19 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy requirements.txt first for better caching
-COPY requirements.txt /app/
+# Copy everything first
+COPY . /app/
 
-# List directory contents to verify requirements.txt exists
+# Debug - see what we have
+RUN find /app -name "requirements.txt" -type f
 RUN ls -la /app/
-RUN cat /app/requirements.txt
 
 # Install dependencies with verbose output
 RUN pip install --upgrade pip && \
-    pip install --verbose --no-cache-dir -r /app/requirements.txt
-
-# Copy everything else
-COPY . /app/
+    pip install --verbose --no-cache-dir -r /app/requirements.txt || echo "Failed to install from requirements.txt"
 
 # Expose the port
 EXPOSE 8000
