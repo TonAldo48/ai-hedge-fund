@@ -23,21 +23,45 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     async function loadPortfolioData() {
-      try {
-        setLoading(true)
-        const data = await fetchPortfolioData()
-        setPortfolioData(data)
-        setError(null)
-      } catch (err) {
-        console.error('Error loading portfolio data:', err)
-        setError('Failed to load portfolio data. Please try again later.')
-      } finally {
-        setLoading(false)
+      const maxRetries = 3;
+      let retryCount = 0;
+      
+      while (retryCount < maxRetries) {
+        try {
+          setLoading(true);
+          setError(null);
+          
+          console.log(`Attempting to fetch portfolio data (attempt ${retryCount + 1}/${maxRetries})`);
+          const data = await fetchPortfolioData();
+          
+          if (data) {
+            setPortfolioData(data);
+            console.log('Successfully loaded portfolio data');
+            return; // Success, exit the retry loop
+          }
+        } catch (err) {
+          console.error(`Error loading portfolio data (attempt ${retryCount + 1}/${maxRetries}):`, err);
+          retryCount++;
+          
+          if (retryCount >= maxRetries) {
+            setError('Failed to load portfolio data. Please try again later.');
+            console.error('All retry attempts failed');
+          } else {
+            // Wait before next retry using exponential backoff
+            const delay = 1000 * Math.pow(2, retryCount - 1);
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        } finally {
+          if (retryCount >= maxRetries) {
+            setLoading(false);
+          }
+        }
       }
     }
 
-    loadPortfolioData()
-  }, [])
+    loadPortfolioData();
+  }, []);
 
   if (loading) {
     return (
