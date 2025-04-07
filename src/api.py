@@ -27,6 +27,8 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",  # Next.js dev server
     "http://localhost:8000",  # FastAPI server (for potential use in development)
+    "https://ai-hedgefund-q4o04ehbx-tonaldo48s-projects.vercel.app",  # Vercel deployment
+    "https://ai-hedgefund.vercel.app",  # Vercel production domain (if custom domain is set)
 ]
 
 # Add additional origins from environment variable if set
