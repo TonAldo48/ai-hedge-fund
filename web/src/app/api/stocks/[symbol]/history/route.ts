@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getHistoricalData, mapTimeframeToYahoo, formatHistoricalData, isRapidAPIConfigured } from '@/lib/yahoo-finance'
+import { getPrices, mapTimeframeToFinancialDatasets, formatPriceData, getDateRangeForTimeframe, isFinancialDatasetsConfigured } from '@/lib/financial-datasets'
 
 // Configuration for the Python backend (fallback)
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
 // Flag to enable direct Yahoo Finance data fetching
 const USE_YAHOO_FINANCE = process.env.NEXT_PUBLIC_USE_YAHOO_FINANCE === 'true'
+// Flag to enable Financial Datasets API
+const USE_FINANCIAL_DATASETS = process.env.NEXT_PUBLIC_FINANCIAL_DATASETS_API_KEY ? true : false
 
 export async function GET(
   request: Request,
@@ -23,7 +26,42 @@ export async function GET(
   }
   
   try {
-    // First try Yahoo Finance direct fetch if enabled
+    // First try Financial Datasets API if enabled
+    if (USE_FINANCIAL_DATASETS && isFinancialDatasetsConfigured()) {
+      try {
+        console.log(`Fetching historical data for ${symbol} from Financial Datasets API with timeframe ${timeframe}`)
+        
+        // Convert our API timeframe format to Financial Datasets API format
+        const { interval, intervalMultiplier } = mapTimeframeToFinancialDatasets(timeframe)
+        const { startDate, endDate } = getDateRangeForTimeframe(timeframe)
+        
+        // Get data from Financial Datasets API
+        const priceData = await getPrices(symbol, startDate, endDate, interval, intervalMultiplier)
+        
+        if (priceData && priceData.length > 0) {
+          // Format data to match our API's expected format
+          const formattedData = formatPriceData(priceData)
+          
+          // Return with the same structure as our backend API
+          return NextResponse.json({
+            symbol,
+            timeframe,
+            history: formattedData,
+            source: 'Financial Datasets API',
+            lastUpdated: new Date().toISOString()
+          })
+        } else {
+          console.warn(`No data returned from Financial Datasets API for ${symbol}, trying Yahoo Finance`)
+        }
+      } catch (financialDatasetsError) {
+        console.error(`Error fetching from Financial Datasets API for ${symbol}:`, financialDatasetsError)
+        console.log('Falling back to Yahoo Finance or backend API')
+      }
+    } else {
+      console.log('Financial Datasets API not configured, trying Yahoo Finance or backend API');
+    }
+    
+    // Try Yahoo Finance as a second option if enabled
     if (USE_YAHOO_FINANCE && isRapidAPIConfigured()) {
       try {
         console.log(`Fetching historical data for ${symbol} from Yahoo Finance (RapidAPI) with timeframe ${timeframe}`)

@@ -48,6 +48,7 @@ By using this software, you agree to use it solely for learning purposes.
   - [Usage](#usage)
     - [Running the Hedge Fund](#running-the-hedge-fund)
     - [Running the Backtester](#running-the-backtester)
+  - [Data Sources](#data-sources)
   - [Deployment](#deployment)
     - [Quick Deployment](#quick-deployment)
     - [Detailed Deployment Guide](#detailed-deployment-guide)
@@ -96,6 +97,18 @@ FINANCIAL_DATASETS_API_KEY=your-financial-datasets-api-key
 ```
 
 **Important**: You must set `OPENAI_API_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, or `DEEPSEEK_API_KEY` for the hedge fund to work.  If you want to use LLMs from all providers, you will need to set all API keys.
+
+## Data Sources
+
+The AI Hedge Fund uses the [Financial Datasets API](https://www.financialdatasets.ai/) as its primary source of financial data. This provides:
+
+- Historical price data for stocks
+- Financial metrics and ratios
+- Financial statements
+- Company news and sentiment
+- Insider trading activity
+
+For detailed setup instructions, see [FINANCIAL_DATASETS_SETUP.md](./FINANCIAL_DATASETS_SETUP.md).
 
 Financial data for AAPL, GOOGL, MSFT, NVDA, and TSLA is free and does not require an API key.
 

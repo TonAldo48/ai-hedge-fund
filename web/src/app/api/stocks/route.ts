@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getQuote, isRapidAPIConfigured } from '@/lib/yahoo-finance'
+import { getPrices, isFinancialDatasetsConfigured } from '@/lib/financial-datasets' 
 
 // Configuration for the Python backend
 // Use explicit IPv4 address to avoid IPv6 resolution issues
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000'
 // Flag to enable direct Yahoo Finance data fetching
 const USE_YAHOO_FINANCE = process.env.NEXT_PUBLIC_USE_YAHOO_FINANCE === 'true'
+// Flag to enable Financial Datasets API
+const USE_FINANCIAL_DATASETS = process.env.NEXT_PUBLIC_FINANCIAL_DATASETS_API_KEY ? true : false
 
 // Common stock symbols to display in Market Overview if no specific list is provided
 const DEFAULT_SYMBOLS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'WMT']
@@ -68,21 +71,100 @@ export async function GET() {
   console.log('=============================================');
   console.log(`Fetching stocks for Market Overview`);
   console.log(`Environment variables:`);
+  console.log(`NEXT_PUBLIC_FINANCIAL_DATASETS_API_KEY configured: ${isFinancialDatasetsConfigured()}`);
   console.log(`NEXT_PUBLIC_USE_YAHOO_FINANCE=${process.env.NEXT_PUBLIC_USE_YAHOO_FINANCE}`);
   console.log(`RAPIDAPI_KEY configured: ${isRapidAPIConfigured()}`);
+  console.log(`USE_FINANCIAL_DATASETS flag=${USE_FINANCIAL_DATASETS}`);
   console.log(`USE_YAHOO_FINANCE flag=${USE_YAHOO_FINANCE}`);
   console.log('=============================================');
   
-  // If Yahoo Finance is enabled but RapidAPI key is not configured, inform the user
-  if (USE_YAHOO_FINANCE && !isRapidAPIConfigured()) {
-    console.warn('Yahoo Finance is enabled but RapidAPI key is not configured.');
-    console.warn('Please sign up at https://rapidapi.com/apidojo/api/yahoo-finance1/ and add your API key to .env.local');
-    console.log('Returning fallback mock data instead');
-    return NextResponse.json(FALLBACK_MOCK_DATA);
-  }
-  
   try {
-    // First try Yahoo Finance direct fetch if enabled
+    // First try Financial Datasets API if enabled
+    if (USE_FINANCIAL_DATASETS && isFinancialDatasetsConfigured()) {
+      try {
+        console.log('Fetching stock data from Financial Datasets API');
+        
+        // Get today's date and yesterday's date for recent price data
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 7); // Use 7 days to ensure we get some data even on weekends
+        
+        const endDate = today.toISOString().split('T')[0];
+        const startDate = yesterday.toISOString().split('T')[0];
+        
+        // Fetch prices for all default symbols in parallel
+        const pricePromises = DEFAULT_SYMBOLS.map(symbol => 
+          getPrices(symbol, startDate, endDate, 'day', 1)
+        );
+        
+        const pricesResults = await Promise.all(pricePromises);
+        
+        // Process the price data to create stock summaries
+        const stocksData = pricesResults
+          .map((prices, index) => {
+            const symbol = DEFAULT_SYMBOLS[index];
+            
+            // Skip if no price data
+            if (!prices || prices.length === 0) {
+              console.warn(`No price data for ${symbol} from Financial Datasets API`);
+              return null;
+            }
+            
+            // Sort by date to get the latest
+            const sortedPrices = [...prices].sort((a, b) => 
+              new Date(b.time).getTime() - new Date(a.time).getTime()
+            );
+            
+            const latestPrice = sortedPrices[0];
+            
+            // Find previous day price for change calculation
+            let previousPrice = null;
+            if (sortedPrices.length > 1) {
+              previousPrice = sortedPrices[1];
+            }
+            
+            let change = 0;
+            let changePercent = 0;
+            
+            if (previousPrice) {
+              change = latestPrice.close - previousPrice.close;
+              changePercent = (change / previousPrice.close) * 100;
+            }
+            
+            return {
+              symbol: symbol,
+              name: getCompanyName(symbol), // Helper function to get company name
+              price: latestPrice.close,
+              open: latestPrice.open,
+              high: latestPrice.high,
+              low: latestPrice.low,
+              change: change,
+              changePercent: changePercent,
+              volume: latestPrice.volume,
+              // We don't have market cap from the price data
+              // This would need to be fetched from another endpoint
+              sector: getSectorForSymbol(symbol),
+              dataSource: 'Financial Datasets API'
+            };
+          })
+          .filter(stock => stock !== null); // Remove nulls
+        
+        if (stocksData && stocksData.length > 0) {
+          console.log(`Successfully fetched ${stocksData.length} stocks from Financial Datasets API`);
+          return NextResponse.json(stocksData);
+        } else {
+          console.warn('No stock data returned from Financial Datasets API');
+          console.log('Falling back to Yahoo Finance or backend API');
+        }
+      } catch (financialDatasetsError) {
+        console.error('Error fetching from Financial Datasets API:', financialDatasetsError);
+        console.log('Falling back to Yahoo Finance or backend API');
+      }
+    } else {
+      console.log('Financial Datasets API not configured, falling back to other data sources');
+    }
+    
+    // Try Yahoo Finance as fallback if enabled
     if (USE_YAHOO_FINANCE && isRapidAPIConfigured()) {
       try {
         console.log('Fetching stock data from Yahoo Finance API');
@@ -104,6 +186,7 @@ export async function GET() {
               marketCap: quote.marketCap,
               volume: quote.regularMarketVolume,
               sector: getSectorFromExchange(quote.exchange),
+              dataSource: 'Yahoo Finance'
             };
           });
         
@@ -112,20 +195,16 @@ export async function GET() {
           return NextResponse.json(stocksData);
         } else {
           console.warn('No stock data returned from Yahoo Finance');
-          console.log('Returning fallback mock data instead');
-          return NextResponse.json(FALLBACK_MOCK_DATA);
+          console.log('Falling back to backend API');
         }
       } catch (yahooError) {
         console.error('Error fetching from Yahoo Finance:', yahooError);
-        console.log('Returning fallback mock data instead');
-        return NextResponse.json(FALLBACK_MOCK_DATA);
+        console.log('Falling back to backend API');
       }
+    } else if (USE_YAHOO_FINANCE) {
+      console.log('RapidAPI key not configured, using backend API');
     } else {
-      if (USE_YAHOO_FINANCE) {
-        console.log('RapidAPI key not configured, using backend API');
-      } else {
-        console.log('Yahoo Finance integration is disabled, using backend API');
-      }
+      console.log('Yahoo Finance integration is disabled, using backend API');
     }
     
     // Call the Python backend to get stock data
@@ -177,4 +256,42 @@ function getSectorFromExchange(exchange: string): string {
   };
   
   return exchanges[exchange] || 'Other';
+}
+
+// Helper function to get company name from symbol
+function getCompanyName(symbol: string): string {
+  // Simplified mapping for common stocks
+  const companyNames: Record<string, string> = {
+    'AAPL': 'Apple Inc.',
+    'MSFT': 'Microsoft Corporation',
+    'GOOGL': 'Alphabet Inc.',
+    'AMZN': 'Amazon.com Inc.',
+    'TSLA': 'Tesla, Inc.',
+    'META': 'Meta Platforms, Inc.',
+    'NVDA': 'NVIDIA Corporation',
+    'JPM': 'JPMorgan Chase & Co.',
+    'V': 'Visa Inc.',
+    'WMT': 'Walmart Inc.'
+  };
+  
+  return companyNames[symbol] || symbol;
+}
+
+// Helper function to get sector for a symbol
+function getSectorForSymbol(symbol: string): string {
+  // Simplified mapping for common stocks
+  const sectors: Record<string, string> = {
+    'AAPL': 'Technology',
+    'MSFT': 'Technology',
+    'GOOGL': 'Technology',
+    'AMZN': 'Consumer Cyclical',
+    'TSLA': 'Automotive',
+    'META': 'Technology',
+    'NVDA': 'Technology',
+    'JPM': 'Financial Services',
+    'V': 'Financial Services',
+    'WMT': 'Consumer Defensive'
+  };
+  
+  return sectors[symbol] || 'Other';
 } 
