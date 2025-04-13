@@ -48,6 +48,12 @@ export async function GET(
             timeframe,
             history: formattedData,
             source: 'Financial Datasets API',
+            apiImplementation: 'financial-datasets.ts',
+            dataSourceDetails: {
+              provider: 'Financial Datasets API',
+              apiKey: 'configured',
+              module: 'financial-datasets.ts'
+            },
             lastUpdated: new Date().toISOString()
           })
         } else {

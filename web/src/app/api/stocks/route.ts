@@ -151,7 +151,18 @@ export async function GET() {
         
         if (stocksData && stocksData.length > 0) {
           console.log(`Successfully fetched ${stocksData.length} stocks from Financial Datasets API`);
-          return NextResponse.json(stocksData);
+          return NextResponse.json({
+            stocks: stocksData,
+            source: 'Financial Datasets API',
+            apiImplementation: 'financial-datasets.ts',
+            dataSourceDetails: {
+              provider: 'Financial Datasets API',
+              apiKey: 'configured',
+              dataPoints: stocksData.length,
+              module: 'financial-datasets.ts'
+            },
+            lastUpdated: new Date().toISOString()
+          });
         } else {
           console.warn('No stock data returned from Financial Datasets API');
           console.log('Falling back to Yahoo Finance or backend API');
@@ -192,7 +203,17 @@ export async function GET() {
         
         if (stocksData && stocksData.length > 0) {
           console.log(`Successfully fetched ${stocksData.length} stocks from Yahoo Finance`);
-          return NextResponse.json(stocksData);
+          return NextResponse.json({
+            stocks: stocksData,
+            source: 'Yahoo Finance',
+            apiImplementation: 'yahoo-finance.ts',
+            dataSourceDetails: {
+              provider: 'Yahoo Finance API',
+              apiKey: 'configured',
+              dataPoints: stocksData.length,
+            },
+            lastUpdated: new Date().toISOString()
+          });
         } else {
           console.warn('No stock data returned from Yahoo Finance');
           console.log('Falling back to backend API');
@@ -223,7 +244,12 @@ export async function GET() {
       const errorData = await response.json().catch(() => null)
       console.error('Error from stocks API:', errorData)
       console.log('Returning fallback mock data instead');
-      return NextResponse.json(FALLBACK_MOCK_DATA);
+      return NextResponse.json({
+        stocks: FALLBACK_MOCK_DATA,
+        source: 'Fallback Mock Data',
+        apiImplementation: 'mock-data',
+        lastUpdated: new Date().toISOString()
+      });
     }
     
     const data = await response.json()
@@ -231,15 +257,32 @@ export async function GET() {
     // If we got empty data, return fallback mock data instead of an error
     if (!data || !Array.isArray(data) || data.length === 0) {
       console.log('No data returned from backend API, using fallback mock data');
-      return NextResponse.json(FALLBACK_MOCK_DATA);
+      return NextResponse.json({
+        stocks: FALLBACK_MOCK_DATA,
+        source: 'Fallback Mock Data',
+        apiImplementation: 'mock-data',
+        lastUpdated: new Date().toISOString()
+      });
     }
     
     console.log(`Successfully fetched ${data.length} stocks from backend API`);
-    return NextResponse.json(data)
+    
+    // Ensure consistent response format with stocks property
+    return NextResponse.json({
+      stocks: data,
+      source: 'Python Backend API',
+      apiImplementation: 'backend-api',
+      lastUpdated: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error processing stocks request:', error)
     console.log('Returning fallback mock data instead');
-    return NextResponse.json(FALLBACK_MOCK_DATA);
+    return NextResponse.json({
+      stocks: FALLBACK_MOCK_DATA,
+      source: 'Fallback Mock Data (Error)',
+      apiImplementation: 'mock-data',
+      lastUpdated: new Date().toISOString()
+    });
   }
 }
 
